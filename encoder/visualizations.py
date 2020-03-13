@@ -169,7 +169,7 @@ class Visualizations:
         if not self.disabled:
             self.projection_win = self.vis.matplot(plt, win=self.projection_win)
         if out_fpath is not None:
-            plt.savefig(out_fpath)
+            plt.savefig(str(out_fpath))
         plt.clf()
         
     def save(self):

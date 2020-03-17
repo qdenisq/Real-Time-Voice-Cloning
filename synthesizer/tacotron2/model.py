@@ -3,8 +3,8 @@ import torch
 from torch.autograd import Variable
 from torch import nn
 from torch.nn import functional as F
-from layers import ConvNorm, LinearNorm
-from utils import to_gpu, get_mask_from_lengths
+from .layers import ConvNorm, LinearNorm
+from .utils import to_gpu, get_mask_from_lengths
 
 
 class LocationLayer(nn.Module):
@@ -398,6 +398,7 @@ class Decoder(nn.Module):
         """
 
         decoder_input = self.get_go_frame(memory).unsqueeze(0)
+        #TODO: add non-zero speaker embedding to zero-frame
         decoder_inputs = self.parse_decoder_inputs(decoder_inputs)
         decoder_inputs = torch.cat((decoder_inputs, speaker_embeddings.permute(2,0,1)), dim=-1)
         decoder_inputs = torch.cat((decoder_input, decoder_inputs), dim=0)
@@ -420,7 +421,7 @@ class Decoder(nn.Module):
 
         return mel_outputs, gate_outputs, alignments
 
-    def inference(self, memory):
+    def inference(self, memory, speaker_embedding):
         """ Decoder inference
         PARAMS
         ------
@@ -437,7 +438,10 @@ class Decoder(nn.Module):
         self.initialize_decoder_states(memory, mask=None)
 
         mel_outputs, gate_outputs, alignments = [], [], []
+        output_lengths = torch.LongTensor([self.max_decoder_steps]*decoder_input.shape[0]).cuda()
+        t = 0
         while True:
+
             decoder_input = self.prenet(decoder_input)
             mel_output, gate_output, alignment = self.decode(decoder_input)
 
@@ -445,18 +449,25 @@ class Decoder(nn.Module):
             gate_outputs += [gate_output]
             alignments += [alignment]
 
-            if torch.sigmoid(gate_output.data) > self.gate_threshold:
-                break
-            elif len(mel_outputs) == self.max_decoder_steps:
+
+            for i in range(decoder_input.shape[0]):
+                if output_lengths[i] == self.max_decoder_steps and torch.sigmoid(gate_output.data)[i] > self.gate_threshold:
+                    output_lengths[i] = t
+            # if any(torch.sigmoid(gate_output.data) > self.gate_threshold):
+            #     for
+            #     break
+            if len(mel_outputs) == self.max_decoder_steps:
                 print("Warning! Reached max decoder steps")
                 break
 
             decoder_input = mel_output
+            decoder_input = torch.cat((decoder_input, speaker_embedding), dim=-1)
+            t += 1
 
         mel_outputs, gate_outputs, alignments = self.parse_decoder_outputs(
             mel_outputs, gate_outputs, alignments)
 
-        return mel_outputs, gate_outputs, alignments
+        return mel_outputs, gate_outputs, alignments, output_lengths
 
 
 class Tacotron2(nn.Module):
@@ -530,11 +541,11 @@ class Tacotron2(nn.Module):
             [mel_outputs, mel_outputs_postnet, gate_outputs, alignments],
             output_lengths)
 
-    def inference(self, inputs):
+    def inference(self, inputs, speaker_embedding):
         embedded_inputs = self.embedding(inputs).transpose(1, 2)
         encoder_outputs = self.encoder.inference(embedded_inputs)
-        mel_outputs, gate_outputs, alignments = self.decoder.inference(
-            encoder_outputs)
+        mel_outputs, gate_outputs, alignments, output_lengths = self.decoder.inference(
+            encoder_outputs, speaker_embedding)
 
         mel_outputs_postnet = self.postnet(mel_outputs)
         mel_outputs_postnet = mel_outputs + mel_outputs_postnet

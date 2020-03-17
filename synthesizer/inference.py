@@ -1,5 +1,10 @@
-from synthesizer.tacotron2 import Tacotron2
+# from synthesizer.tacotron2 import Tacotron2
+import torch
+from synthesizer.tacotron2.model import Tacotron2
+from synthesizer.tacotron2.train import load_checkpoint
+from synthesizer.tacotron2.hparams import create_hparams
 from synthesizer.hparams import hparams
+from synthesizer.tacotron2.data_utils import text_to_sequence
 from multiprocess.pool import Pool  # You're free to use either one
 #from multiprocessing import Pool   # 
 from synthesizer import audio
@@ -12,10 +17,10 @@ import librosa
 
 
 class Synthesizer:
-    sample_rate = hparams.sample_rate
-    hparams = hparams
+    # sample_rate = hparams.sample_rate
+    hparams = create_hparams()
     
-    def __init__(self, checkpoints_dir: Path, verbose=True, low_mem=False):
+    def __init__(self, checkpoint_path: Path, verbose=True, low_mem=False):
         """
         Creates a synthesizer ready for inference. The actual model isn't loaded in memory until
         needed or until load() is called.
@@ -32,14 +37,16 @@ class Synthesizer:
         
         # Prepare the model
         self._model = None  # type: Tacotron2
-        checkpoint_state = tf.train.get_checkpoint_state(checkpoints_dir)
-        if checkpoint_state is None:
-            raise Exception("Could not find any synthesizer weights under %s" % checkpoints_dir)
-        self.checkpoint_fpath = checkpoint_state.model_checkpoint_path
-        if verbose:
-            model_name = checkpoints_dir.parent.name.replace("logs-", "")
-            step = int(self.checkpoint_fpath[self.checkpoint_fpath.rfind('-') + 1:])
-            print("Found synthesizer \"%s\" trained to step %d" % (model_name, step))
+        self.checkpoint_path = checkpoint_path
+
+        # checkpoint_state = tf.train.get_checkpoint_state(checkpoints_dir)
+        # if checkpoint_state is None:
+        #     raise Exception("Could not find any synthesizer weights under %s" % checkpoints_dir)
+        # self.checkpoint_fpath = checkpoint_state.model_checkpoint_path
+        # if verbose:
+        #     model_name = checkpoints_dir.parent.name.replace("logs-", "")
+        #     step = int(self.checkpoint_fpath[self.checkpoint_fpath.rfind('-') + 1:])
+        #     print("Found synthesizer \"%s\" trained to step %d" % (model_name, step))
      
     def is_loaded(self):
         """
@@ -54,8 +61,17 @@ class Synthesizer:
         """
         if self._low_mem:
             raise Exception("Cannot load the synthesizer permanently in low mem mode")
-        tf.reset_default_graph()
-        self._model = Tacotron2(self.checkpoint_fpath, hparams)
+
+        optimizer=None
+        self._model = Tacotron2(Synthesizer.hparams)
+        learning_rate = Synthesizer.hparams.learning_rate
+        optimizer = torch.optim.Adam(self._model.parameters(), lr=learning_rate,
+                                     weight_decay=Synthesizer.hparams.weight_decay)
+        self._model, optimizer, _learning_rate, iteration = load_checkpoint(
+            self.checkpoint_path, self._model, optimizer)
+
+        # tf.reset_default_graph()
+        # self._model = Tacotron2(self.checkpoint_fpath, hparams)
             
     def synthesize_spectrograms(self, texts: List[str],
                                 embeddings: Union[np.ndarray, List[np.ndarray]],
@@ -75,7 +91,29 @@ class Synthesizer:
             # Usual inference mode: load the model on the first request and keep it loaded.
             if not self.is_loaded():
                 self.load()
-            specs, alignments = self._model.my_synthesize(embeddings, texts)
+            # specs, alignments = self._model.my_synthesize(embeddings, texts)
+
+            input_lengths, ids_sorted_decreasing = torch.sort(
+                torch.LongTensor([len(x) for x in texts]),
+                dim=0, descending=True)
+            max_input_len = input_lengths[0]
+
+            text_padded = torch.LongTensor(len(texts), max_input_len)
+            text_padded.zero_()
+            for i in range(len(ids_sorted_decreasing)):
+                text = texts[ids_sorted_decreasing[i]]
+                text_norm = torch.IntTensor(text_to_sequence(text, Synthesizer.hparams.text_cleaners))
+                text_padded[i, :len(text_norm)] = text_norm
+
+            embeddings = torch.from_numpy(embeddings)
+            text_padded = text_padded
+            _, specs, gates, alignments = self._model.inference(text_padded, embeddings)
+
+            specs = specs.detach().cpu().numpy()
+            gates = gates.detach().cpu().numpy()
+            alignments = alignments.detach().cpu().numpy()
+
+
         else:
             # Low memory inference mode: load the model upon every request. The model has to be 
             # loaded in a separate process to be able to release GPU memory (a simple workaround 
@@ -88,10 +126,18 @@ class Synthesizer:
     @staticmethod
     def _one_shot_synthesize_spectrograms(checkpoint_fpath, embeddings, texts):
         # Load the model and forward the inputs
-        tf.reset_default_graph()
-        model = Tacotron2(checkpoint_fpath, hparams)
-        specs, alignments = model.my_synthesize(embeddings, texts)
-        
+        # tf.reset_default_graph()
+        # model = Tacotron2(checkpoint_fpath, hparams)
+        # specs, alignments = model.my_synthesize(embeddings, texts)
+
+        model = None
+        learning_rate = Synthesizer.hparams.learning_rate
+        model = Tacotron2(Synthesizer.hparams)
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate,
+                                 weight_decay=Synthesizer.hparams.weight_decay)
+        model, optimizer, _learning_rate, iteration = load_checkpoint(checkpoint_fpath, model, optimizer)
+        specs, alignments = model.inference(texts, embeddings)
+
         # Detach the outputs (not doing so will cause the process to hang)
         specs, alignments = [spec.copy() for spec in specs], alignments.copy()
         

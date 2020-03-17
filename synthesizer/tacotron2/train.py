@@ -11,12 +11,12 @@ import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import DataLoader
 
-from distributed import apply_gradient_allreduce
-from model import Tacotron2
-from data_utils import TextMelLoader, TextMelCollate
-from loss_function import Tacotron2Loss
-from logger import Tacotron2Logger
-from hparams import create_hparams
+from synthesizer.tacotron2.distributed import apply_gradient_allreduce
+from synthesizer.tacotron2.model import Tacotron2
+from synthesizer.tacotron2.data_utils import TextMelLoader, TextMelCollate
+from synthesizer.tacotron2.loss_function import Tacotron2Loss
+from synthesizer.tacotron2.logger import Tacotron2Logger
+from synthesizer.tacotron2.hparams import create_hparams
 
 
 def reduce_tensor(tensor, n_gpus):

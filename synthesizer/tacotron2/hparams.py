@@ -1,5 +1,5 @@
 import tensorflow as tf
-from text import symbols
+from synthesizer.tacotron2.text import symbols
 
 
 def create_hparams(hparams_string=None, verbose=False):
@@ -97,7 +97,7 @@ def create_hparams(hparams_string=None, verbose=False):
         learning_rate=1e-3,
         weight_decay=1e-6,
         grad_clip_thresh=1.0,
-        batch_size=64,
+        batch_size=32,
         mask_padding=True,  # set model's padded outputs to padded values
 
         #################################

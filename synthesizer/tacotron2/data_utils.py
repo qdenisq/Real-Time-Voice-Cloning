@@ -3,9 +3,9 @@ import numpy as np
 import torch
 import torch.utils.data
 
-import layers
-from utils import load_wav_to_torch, load_filepaths_and_text
-from text import text_to_sequence
+from synthesizer.tacotron2.layers import TacotronSTFT
+from synthesizer.tacotron2.utils import load_wav_to_torch, load_filepaths_and_text
+from synthesizer.tacotron2.text import text_to_sequence
 import os
 
 
@@ -29,7 +29,7 @@ class TextMelLoader(torch.utils.data.Dataset):
         #
         # self.max_wav_value = hparams.max_wav_value
         # self.sampling_rate = hparams.sampling_rate
-        self.stft = layers.TacotronSTFT(
+        self.stft = TacotronSTFT(
             hparams.filter_length, hparams.hop_length, hparams.win_length,
             hparams.n_mel_channels, hparams.sampling_rate, hparams.mel_fmin,
             hparams.mel_fmax)

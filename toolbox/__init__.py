@@ -161,11 +161,13 @@ class Toolbox:
         
         # Synthesize the spectrogram
         if self.synthesizer is None:
-            model_dir = self.ui.current_synthesizer_model_dir
-            checkpoints_dir = model_dir.joinpath("taco_pretrained")
-            self.synthesizer = Synthesizer(checkpoints_dir, low_mem=self.low_mem)
+            checkpoint_fpath = self.ui.current_synthesizer_model_dir
+            # model_dir = self.ui.current_synthesizer_model_dir
+            # checkpoints_dir = model_dir.joinpath("taco_pretrained")
+
+            self.synthesizer = Synthesizer(checkpoint_fpath, low_mem=self.low_mem)
         if not self.synthesizer.is_loaded():
-            self.ui.log("Loading the synthesizer %s" % self.synthesizer.checkpoint_fpath)
+            self.ui.log("Loading the synthesizer %s" % self.synthesizer.checkpoint_path)
         
         texts = self.ui.text_prompt.toPlainText().split("\n")
         embed = self.ui.selected_utterance.embed

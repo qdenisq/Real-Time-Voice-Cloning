@@ -220,6 +220,10 @@ class Decoder(nn.Module):
             hparams.n_mel_channels * hparams.n_frames_per_step + hparams.speaker_embedding_size,
             [hparams.prenet_dim, hparams.prenet_dim])
 
+        # self.prenet = Prenet(
+        #     hparams.n_mel_channels * hparams.n_frames_per_step,
+        #     [hparams.prenet_dim, hparams.prenet_dim])
+
         self.attention_rnn = nn.LSTMCell(
             hparams.prenet_dim + hparams.encoder_embedding_dim,
             hparams.attention_rnn_dim)
@@ -252,6 +256,9 @@ class Decoder(nn.Module):
         decoder_input: all zeros frames
         """
         B = memory.size(0)
+        # decoder_input = Variable(memory.data.new(
+        #     B, self.n_mel_channels * self.n_frames_per_step).zero_())
+
         decoder_input = Variable(memory.data.new(
             B, self.n_mel_channels * self.n_frames_per_step + self.speaker_embedd_dim).zero_())
         return decoder_input
@@ -461,7 +468,7 @@ class Decoder(nn.Module):
                 break
 
             decoder_input = mel_output
-            decoder_input = torch.cat((decoder_input, speaker_embedding), dim=-1)
+            # decoder_input = torch.cat((decoder_input, speaker_embedding), dim=-1)
             t += 1
 
         mel_outputs, gate_outputs, alignments = self.parse_decoder_outputs(

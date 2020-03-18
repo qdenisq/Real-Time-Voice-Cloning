@@ -10,10 +10,10 @@ def create_hparams(hparams_string=None, verbose=False):
         # Experiment Parameters        #
         ################################
         epochs=500,
-        iters_per_checkpoint=1000,
+        iters_per_checkpoint=500,
         seed=1234,
         dynamic_loss_scaling=True,
-        fp16_run=False,
+        fp16_run=True,
         distributed_run=False,
         dist_backend="nccl",
         dist_url="tcp://localhost:54321",
@@ -70,7 +70,7 @@ def create_hparams(hparams_string=None, verbose=False):
 
         # Decoder parameters
         n_frames_per_step=1,  # currently only 1 is supported
-        decoder_rnn_dim=1024,
+        decoder_rnn_dim=1024, #was 1024
         prenet_dim=256,
         max_decoder_steps=1000,
         gate_threshold=0.5,
@@ -78,7 +78,7 @@ def create_hparams(hparams_string=None, verbose=False):
         p_decoder_dropout=0.1,
 
         # Attention parameters
-        attention_rnn_dim=1024,
+        attention_rnn_dim=1024, # was 1024
         attention_dim=128,
 
         # Location Layer parameters
@@ -88,7 +88,7 @@ def create_hparams(hparams_string=None, verbose=False):
         # Mel-post processing network parameters
         postnet_embedding_dim=512,
         postnet_kernel_size=5,
-        postnet_n_convolutions=5,
+        postnet_n_convolutions=3, # was 5
 
         ################################
         # Optimization Hyperparameters #
@@ -97,7 +97,7 @@ def create_hparams(hparams_string=None, verbose=False):
         learning_rate=1e-3,
         weight_decay=1e-6,
         grad_clip_thresh=1.0,
-        batch_size=32,
+        batch_size=6,
         mask_padding=True,  # set model's padded outputs to padded values
 
         #################################

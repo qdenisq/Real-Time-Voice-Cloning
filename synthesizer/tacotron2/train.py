@@ -148,6 +148,8 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
 
         val_loss = 0.0
         for i, batch in enumerate(val_loader):
+            if i > 20:
+                break
             x, y = model.parse_batch(batch)
             y_pred = model(x)
             loss = criterion(y_pred, y)
@@ -230,7 +232,12 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
 
             model.zero_grad()
             x, y = model.parse_batch(batch)
+
+            time_batch_parse = time.perf_counter()
+
             y_pred = model(x)
+
+            forward_time = time.perf_counter()
 
             loss = criterion(y_pred, y)
             if hparams.distributed_run:
@@ -243,6 +250,8 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
             else:
                 loss.backward()
 
+            backward_time = time.perf_counter()
+
             if hparams.fp16_run:
                 grad_norm = torch.nn.utils.clip_grad_norm_(
                     amp.master_params(optimizer), hparams.grad_clip_thresh)
@@ -253,10 +262,12 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
 
             optimizer.step()
 
+            update_time = time.perf_counter()
+
             if not is_overflow and rank == 0:
                 duration = time.perf_counter() - start
-                print("Train loss {} {:.6f} Grad Norm {:.6f} {:.2f}s/it".format(
-                    iteration, reduced_loss, grad_norm, duration))
+                print("Train loss {} {:.6f} Grad Norm {:.6f} {:.2f}s/it | batch_preproc {:.2f}s/it | forward {:.2f}s/it | backward {:.2f}s/it | update {:.2f}s/it".format(
+                    iteration, reduced_loss, grad_norm, duration, time_batch_parse - start, forward_time-time_batch_parse, backward_time-forward_time, update_time-backward_time))
                 logger.log_training(
                     reduced_loss, grad_norm, learning_rate, duration, iteration)
 
